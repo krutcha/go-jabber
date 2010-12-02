@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"crypto/tls"
+	"crypto/sha1"
 	"sort"
 	"strings"
 	"encoding/base64"
@@ -268,6 +269,7 @@ func spawnConnection(host string, domain string, username string, password strin
 	//kick off read/write threads
 	net_out = startWriter(con)
 	net_in = startReader(con)
+	
 	jcon.user_cmd = make(chan string, 10)
 	jcon.user_resp = make(chan int)
 	jcon.NameToJid = make(map[string]string)
@@ -314,7 +316,6 @@ func spawnConnection(host string, domain string, username string, password strin
 						for _, update := range updates {
 							if contact, exists := jcon.JidToContact[update.JID]; exists == true {
 								if update.Type == "unavailable" {
-									//jcon.JidToContact[update.JID] = &Contact{}, false
 									contact.Show = "offline"
 								} else {
 									if update.Show != "" {
@@ -325,12 +326,31 @@ func spawnConnection(host string, domain string, username string, password strin
 									if update.Status != "" {
 										contact.Status = update.Status
 									}
-									//jcon.JidToContact[update.JID] = contact
+									if update.PhotoHash != "" {
+										if(contact.Avatar.PhotoHash != update.PhotoHash) {
+											LogVerbose("existing photo %s doesn't match %s", contact.Avatar.PhotoHash, update.PhotoHash)
+											//a new avatar must be present, request vcard
+											net_out <- "<iq from='" + jcon.JID + "' to='" + update.JID + "' type='get' id='vc2'><vCard xmlns='vcard-temp'/></iq>"
+										}
+									}
 								}
-								LogVerbose("UPDATE[%s, %s, %s]", contact.Name, contact.Show, contact.Status)
+								LogVerbose("UPDATE[%s, %s, %s, hasphoto:%s]", contact.Name, contact.Show, contact.Status, contact.Avatar.PhotoHash)
 
 							} else {
 								LogVerbose("UPDATE[%s] not found")
+							}
+						}
+					}
+				case VCard:
+					if avatars, err := GetAvatars(msg); err == nil {
+						for _, avatar := range avatars {
+							Log("VCARD[%s, %s]", avatar.JID, avatar.Type)
+							if contact, exists := jcon.JidToContact[avatar.JID]; exists == true {
+								contact.Avatar.Photo = avatar.Photo
+								contact.Avatar.Type  = avatar.Type
+								hash := sha1.New()
+								hash.Write(avatar.Photo)
+								contact.Avatar.PhotoHash = string(hash.Sum())
 							}
 						}
 					}

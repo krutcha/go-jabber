@@ -25,6 +25,8 @@ const (
 	nsRoster     = "jabber:iq:roster"
 	nsSession    = "urn:ietf:params:xml:ns:xmpp-session"
 	nsChatstates = "http://jabber.org/protocol/chatstates"
+	nsVcardUpdate = "vcard-temp:x:update"
+	nsVcard		 = "vcard-temp"
 )
 
 // Enumeration of Message Types
@@ -40,6 +42,7 @@ const (
 	Presence
 	Proceed
 	Message
+	VCard
 	Error
 )
 /**************************************************************
@@ -51,6 +54,7 @@ type Contact struct {
 	JID          string
 	Show         string
 	Status       string
+	Avatar		 Photo
 }
 
 type PresenceUpdate struct {
@@ -58,6 +62,7 @@ type PresenceUpdate struct {
 	Show   string
 	Status string
 	Type   string
+	PhotoHash string
 }
 
 type MessageUpdate struct {
@@ -67,6 +72,17 @@ type MessageUpdate struct {
 	Body  string
 }
 
+type AvatarUpdate struct {
+	Type string
+	Photo []byte
+	JID	 string
+}
+
+type Photo struct {
+	PhotoHash string
+	Photo	  []byte
+	Type	  string
+}
 /**************************************************************
  * EXPORTED - Simple messages
  **************************************************************/
@@ -146,6 +162,14 @@ func GetMessageType(msg string) (int, os.Error) {
 	if node != nil {
 		LogVerbose("GetMessageType:IQ, looking for specifics")
 
+		/* google chat: 
+		<iq from="gmail.com" type="result" id="sess_1"/>	
+		*/
+		if strings.Contains(node.GetAttr("", "id"), "sess") {
+			LogVerbose("GetMessageType:Session, google style")
+			return Session, nil
+		}
+
 		/* facebook: 
 		<iq type="result" from="chat.facebook.com" id="sess_1">
 			<session xmlns="urn:ietf:params:xml:ns:xmpp-session"/>
@@ -157,15 +181,37 @@ func GetMessageType(msg string) (int, os.Error) {
 			return Session, nil
 		}
 
-		/* google chat: 
-		<iq from="gmail.com" type="result" id="sess_1"/>	
+		/* VCARD
+		<iq from='juliet@capulet.com' to='romeo@montague.net/orchard' type='result' id='vc2'>
+			<vCard xmlns='vcard-temp'>
+				<BDAY>1476-06-09</BDAY>
+				<ADR>
+					<CTRY>Italy</CTRY>
+					<LOCALITY>Verona</LOCALITY>
+					<HOME/>
+				</ADR>
+				<NICKNAME/>
+				<N>
+					<GIVEN>Juliet</GIVEN>
+					<FAMILY>Capulet</FAMILY>
+				</N>
+				<EMAIL>jcapulet@shakespeare.lit</EMAIL>
+				<PHOTO>
+					<TYPE>image/jpeg</TYPE>
+					<BINVAL>
+					Base64-encoded-avatar-file-here!
+					</BINVAL>
+				</PHOTO>
+			</vCard>
+		</iq>
 		*/
-		if strings.Contains(node.GetAttr("", "id"), "sess") {
-			LogVerbose("GetMessageType:Session, google style")
-			return Session, nil
-		}
-
-		/*
+		node = xmlDoc.SelectNode(nsVcard, "vCard")
+		if node != nil {
+			LogVerbose("GetMessageType:VCard")
+			return VCard, nil
+		}				
+		
+		/* BIND/JID
 			<iq type='result' id='bind_2'>
 			  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
 				<jid>somenode@example.com/someresource</jid>
@@ -263,6 +309,74 @@ func GetMessageType(msg string) (int, os.Error) {
 	return Unknown, nil
 }
 
+func GetAvatars(msg string) ([]AvatarUpdate, os.Error){
+	xmlDoc := xmlx.New()
+	var updates []AvatarUpdate
+	var tempUpdate AvatarUpdate
+	
+	if err := xmlDoc.LoadString(msg); err != nil {
+		LogError(err)
+		return nil, err
+	}
+
+	/* VCARD
+	<iq from='juliet@capulet.com' to='romeo@montague.net/orchard' type='result' id='vc2'>
+		<vCard xmlns='vcard-temp'>
+			<BDAY>1476-06-09</BDAY>
+			<ADR>
+				<CTRY>Italy</CTRY>
+				<LOCALITY>Verona</LOCALITY>
+				<HOME/>
+			</ADR>
+			<NICKNAME/>
+			<N>
+				<GIVEN>Juliet</GIVEN>
+				<FAMILY>Capulet</FAMILY>
+			</N>
+			<EMAIL>jcapulet@shakespeare.lit</EMAIL>
+			<PHOTO>
+				<TYPE>image/jpeg</TYPE>
+				<BINVAL>
+				Base64-encoded-avatar-file-here!
+				</BINVAL>
+			</PHOTO>
+		</vCard>
+	</iq>
+	*/
+	
+	fromjid := ""
+	iqnodes := xmlDoc.SelectNodes("", "iq")
+	for _, iqnode := range iqnodes {
+		fromjid = iqnode.GetAttr("", "from")
+		LogVerbose("photo from: %s", fromjid)
+
+		node := iqnode.SelectNode(nsVcard, "PHOTO")
+		if node != nil {
+			phototype := node.GetValue(nsVcard,"TYPE")
+			LogVerbose("photo type: %s", phototype)
+		
+			base64pic := node.GetValue(nsVcard,"BINVAL")
+			if(base64pic != ""){
+				//base64 has \r\n legal, but xml can strip off the \r
+				//see http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2001AprJun/0188.html
+				//safer to just remove \n (0xa) altogether, or maybe replace it with (0xda)
+				base64pic = strings.Replace(base64pic, "\n", "", -1)
+				dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(base64pic)))
+				if _, err := base64.StdEncoding.Decode(dbuf, []byte(base64pic)); err != nil {
+					LogError(err)
+					return updates, err
+				}
+				tempUpdate.JID = fromjid
+				tempUpdate.Photo = dbuf
+				tempUpdate.Type = phototype
+				updates = append(updates, tempUpdate)
+			}
+		}
+	}
+	
+	return updates, nil
+}
+
 func GetJID(msg string) (string, os.Error) {
 	xmlDoc := xmlx.New()
 
@@ -338,21 +452,27 @@ func GetPresenceUpdates(msg string) ([]PresenceUpdate, os.Error) {
 	}
 
 	/*
-		<presence xml:lang='en'>
-		  <show>dnd</show>
-		  <status>Wooing Juliet</status>
-		  <status xml:lang='cz'>Ja dvo&#x0159;&#x00ED;m Juliet</status>
-		  <priority>1</priority>
+		<presence from='juliet@example.com/balcony' to='romeo@example.net/orchard' xml:lang='en'>
+			<show>away</show>
+			<status>be right back</status>
+			<priority>0</priority>
+			<x xmlns="vcard-temp:x:update">
+				<photo>8668b9b00eeb2e3a51ea5758e7cff9f7c5780309</photo>
+			</x>
 		</presence>
 	*/
-	//look for mechanisms
 	nodes := xmlDoc.SelectNodes("", "presence")
 	for _, node := range nodes {
-		//sometimes jid in presence update comes with /resource
+		//sometimes jid in presence update comes with /resource, split it off
 		tempUpdate.JID = (strings.Split(node.GetAttr("", "from"), "/", -1))[0]
 		tempUpdate.Type = node.GetAttr("", "type")
 		tempUpdate.Show = node.GetValue("", "show")
 		tempUpdate.Status = node.GetValue("", "status")
+		//photo present? http://xmpp.org/extensions/xep-0153.html
+		if tempnode := node.SelectNode(nsVcardUpdate, "x"); tempnode != nil {
+			tempUpdate.PhotoHash = tempnode.GetValue(nsVcardUpdate, "photo")
+			LogVerbose("PhotoHash In Presence Update: %s", tempUpdate.PhotoHash)
+		}
 		updates = append(updates, tempUpdate)
 	}
 
