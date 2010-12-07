@@ -1,8 +1,7 @@
-include $(GOROOT)/src/Make.inc
+all:
+	make -C command_line 
+	make -C gtk 
 
-TARG=gojabber
-
-GOFILES=example_client.go
-
-
-include $(GOROOT)/src/Make.cmd
+clean:
+	make -C command_line clean
+	make -C gtk clean
