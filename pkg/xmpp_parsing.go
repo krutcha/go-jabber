@@ -17,16 +17,16 @@ const noncecount = "00000001"
 
 // XMPP relevant XML namespaces
 const (
-	nsStream     = "http://etherx.jabber.org/streams"
-	nsTLS        = "urn:ietf:params:xml:ns:xmpp-tls"
-	nsSASL       = "urn:ietf:params:xml:ns:xmpp-sasl"
-	nsBind       = "urn:ietf:params:xml:ns:xmpp-bind"
-	nsClient     = "jabber:client"
-	nsRoster     = "jabber:iq:roster"
-	nsSession    = "urn:ietf:params:xml:ns:xmpp-session"
-	nsChatstates = "http://jabber.org/protocol/chatstates"
+	nsStream      = "http://etherx.jabber.org/streams"
+	nsTLS         = "urn:ietf:params:xml:ns:xmpp-tls"
+	nsSASL        = "urn:ietf:params:xml:ns:xmpp-sasl"
+	nsBind        = "urn:ietf:params:xml:ns:xmpp-bind"
+	nsClient      = "jabber:client"
+	nsRoster      = "jabber:iq:roster"
+	nsSession     = "urn:ietf:params:xml:ns:xmpp-session"
+	nsChatstates  = "http://jabber.org/protocol/chatstates"
 	nsVcardUpdate = "vcard-temp:x:update"
-	nsVcard		 = "vcard-temp"
+	nsVcard       = "vcard-temp"
 )
 
 // Enumeration of Message Types
@@ -54,80 +54,48 @@ type Contact struct {
 	JID          string
 	Show         string
 	Status       string
-	Avatar		 Photo
+	Avatar       Photo
 }
 
 type PresenceUpdate struct {
-	JID    string
-	Show   string
-	Status string
-	Type   string
+	JID       string
+	Show      string
+	Status    string
+	Type      string
 	PhotoHash string
 }
 
 type MessageUpdate struct {
-	From  string
+	JID   string
 	Type  string
 	State string //active, composing, paused, inactive
 	Body  string
 }
 
 type AvatarUpdate struct {
-	Type string
+	Type  string
 	Photo []byte
-	JID	 string
+	JID   string
 }
 
 type Photo struct {
 	PhotoHash string
-	Photo	  []byte
-	Type	  string
-}
-/**************************************************************
- * EXPORTED - Simple messages
- **************************************************************/
-func StartStream(writechan chan string, domain string) {
-	LogVerbose("Sending Stream Start")
-	writechan <- XMLVERSION+"<stream:stream "+"to='"+domain+"' "+"xmlns='"+nsClient+"' "+"xmlns:stream='"+nsStream+"' "+"version='1.0'>"
-}
-
-func EndStream(writechan chan string) {
-	LogVerbose("Sending Stream Termination")
-	writechan <- "</stream:stream>"
-}
-
-func StartTLS(writechan chan string) {
-	LogVerbose("sending startTLS")
-	writechan <- "<starttls xmlns='"+nsTLS+"'/>"
-}
-
-func RequestRoster(writechan chan string, JID string) {
-	LogVerbose("Requesting Roster")
-	writechan <- "<iq from='"+JID+"' type='get' id='roster_1'><query xmlns='"+nsRoster+"'/></iq>"
-}
-
-func RequestSession(writechan chan string, domain string) {
-	LogVerbose("Requesting Session")
-	writechan <- "<iq to='"+domain+"' type='set' id='sess_1'><session xmlns='"+nsSession+"'/></iq>"
-}
-
-func SendMessage(writechan chan string, msg string, contact *Contact, fromJID string) {
-	LogVerbose("Sending msg [%s] to [%s]", msg, contact.Name)
-	writechan <- "<message to='"+contact.JID+"' from='"+fromJID+"' type='chat' xml:lang='en'><body>"+msg+"</body></message>"
+	Photo     []byte
+	Type      string
 }
 
 /**************************************************************
- * EXPORTED - Parsing
+ * INTERNAL - Parsing
  **************************************************************/
-func GetMessageType(msg string) (int, os.Error) {
+func getMessageType(msg string) (int, os.Error) {
 	xmlDoc := xmlx.New()
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
+		logError(err)
 		return Error, err
 	}
 
-	LogVerbose("Root:%s, ns:%s", xmlDoc.Root.Name.Local, xmlDoc.Root.Name.Space)
-	LogVerbose("Child:%s, ns:%s", xmlDoc.Root.Children[0].Name.Local, xmlDoc.Root.Children[0].Name.Space)
+	logVerbose("Root:%s, ns:%s", xmlDoc.Root.Name.Local, xmlDoc.Root.Name.Space)
+	logVerbose("Child:%s, ns:%s", xmlDoc.Root.Children[0].Name.Local, xmlDoc.Root.Children[0].Name.Space)
 
 	/*
 		<presence xml:lang='en'>
@@ -139,7 +107,7 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node := xmlDoc.SelectNode("", "presence")
 	if node != nil {
-		LogVerbose("GetMessageType:Presence")
+		logVerbose("GetMessageType:Presence")
 		return Presence, nil
 	}
 	/*
@@ -154,19 +122,19 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode("", "message")
 	if node != nil {
-		LogVerbose("GetMessageType:Message")
+		logVerbose("GetMessageType:Message")
 		return Message, nil
 	}
 
 	node = xmlDoc.SelectNode("", "iq")
 	if node != nil {
-		LogVerbose("GetMessageType:IQ, looking for specifics")
+		logVerbose("GetMessageType:IQ, looking for specifics")
 
 		/* google chat: 
 		<iq from="gmail.com" type="result" id="sess_1"/>	
 		*/
 		if strings.Contains(node.GetAttr("", "id"), "sess") {
-			LogVerbose("GetMessageType:Session, google style")
+			logVerbose("GetMessageType:Session, google style")
 			return Session, nil
 		}
 
@@ -177,7 +145,7 @@ func GetMessageType(msg string) (int, os.Error) {
 		*/
 		node = xmlDoc.SelectNode(nsSession, "session")
 		if node != nil {
-			LogVerbose("GetMessageType:Session")
+			logVerbose("GetMessageType:Session")
 			return Session, nil
 		}
 
@@ -207,20 +175,20 @@ func GetMessageType(msg string) (int, os.Error) {
 		*/
 		node = xmlDoc.SelectNode(nsVcard, "vCard")
 		if node != nil {
-			LogVerbose("GetMessageType:VCard")
+			logVerbose("GetMessageType:VCard")
 			return VCard, nil
-		}				
-		
+		}
+
 		/* BIND/JID
-			<iq type='result' id='bind_2'>
-			  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
-				<jid>somenode@example.com/someresource</jid>
-			  </bind>
-			</iq>
+		<iq type='result' id='bind_2'>
+		  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
+			<jid>somenode@example.com/someresource</jid>
+		  </bind>
+		</iq>
 		*/
 		node = xmlDoc.SelectNode(nsBind, "jid")
 		if node != nil {
-			LogVerbose("GetMessageType:JID")
+			logVerbose("GetMessageType:JID")
 			return JID, nil
 		}
 	}
@@ -238,7 +206,7 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode(nsRoster, "query")
 	if node != nil {
-		LogVerbose("GetMessageType:Roster")
+		logVerbose("GetMessageType:Roster")
 		return Roster, nil
 	}
 
@@ -255,12 +223,12 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode(nsStream, "features")
 	if node != nil {
-		LogVerbose("GetMessageType:features")
+		logVerbose("GetMessageType:features")
 		return Features, nil
 	}
 	node = xmlDoc.SelectNode("stream", "features")
 	if node != nil {
-		LogVerbose("GetMessageType:features")
+		logVerbose("GetMessageType:features")
 		return Features, nil
 	}
 
@@ -272,7 +240,7 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode(nsSASL, "challenge")
 	if node != nil {
-		LogVerbose("GetMessageType:challenge")
+		logVerbose("GetMessageType:challenge")
 		return Challenge, nil
 	}
 
@@ -281,7 +249,7 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode(nsSASL, "success")
 	if node != nil {
-		LogVerbose("GetMessageType:success")
+		logVerbose("GetMessageType:success")
 		return Success, nil
 	}
 
@@ -292,7 +260,7 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode(nsSASL, "failure")
 	if node != nil {
-		LogVerbose("GetMessageType:Failure")
+		logVerbose("GetMessageType:Failure")
 		return SASLFailure, nil
 	}
 
@@ -301,21 +269,21 @@ func GetMessageType(msg string) (int, os.Error) {
 	*/
 	node = xmlDoc.SelectNode(nsTLS, "proceed")
 	if node != nil {
-		LogVerbose("GetMessageType:proceed")
+		logVerbose("GetMessageType:proceed")
 		return Proceed, nil
 	}
 
-	LogVerbose("GetMessageType:unknown")
+	logVerbose("GetMessageType:unknown")
 	return Unknown, nil
 }
 
-func GetAvatars(msg string) ([]AvatarUpdate, os.Error){
+func getAvatars(msg string) ([]AvatarUpdate, os.Error) {
 	xmlDoc := xmlx.New()
 	var updates []AvatarUpdate
 	var tempUpdate AvatarUpdate
-	
+
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
+		logError(err)
 		return nil, err
 	}
 
@@ -343,27 +311,27 @@ func GetAvatars(msg string) ([]AvatarUpdate, os.Error){
 		</vCard>
 	</iq>
 	*/
-	
+
 	fromjid := ""
 	iqnodes := xmlDoc.SelectNodes("", "iq")
 	for _, iqnode := range iqnodes {
 		fromjid = iqnode.GetAttr("", "from")
-		LogVerbose("photo from: %s", fromjid)
+		logVerbose("photo from: %s", fromjid)
 
 		node := iqnode.SelectNode(nsVcard, "PHOTO")
 		if node != nil {
-			phototype := node.GetValue(nsVcard,"TYPE")
-			LogVerbose("photo type: %s", phototype)
-		
-			base64pic := node.GetValue(nsVcard,"BINVAL")
-			if(base64pic != ""){
+			phototype := node.GetValue(nsVcard, "TYPE")
+			logVerbose("photo type: %s", phototype)
+
+			base64pic := node.GetValue(nsVcard, "BINVAL")
+			if base64pic != "" {
 				//base64 has \r\n legal, but xml can strip off the \r
 				//see http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2001AprJun/0188.html
 				//safer to just remove \n (0xa) altogether, or maybe replace it with (0xda)
 				base64pic = strings.Replace(base64pic, "\n", "", -1)
 				dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(base64pic)))
 				if _, err := base64.StdEncoding.Decode(dbuf, []byte(base64pic)); err != nil {
-					LogError(err)
+					logError(err)
 					return updates, err
 				}
 				tempUpdate.JID = fromjid
@@ -373,15 +341,15 @@ func GetAvatars(msg string) ([]AvatarUpdate, os.Error){
 			}
 		}
 	}
-	
+
 	return updates, nil
 }
 
-func GetJID(msg string) (string, os.Error) {
+func getJID(msg string) (string, os.Error) {
 	xmlDoc := xmlx.New()
 
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
+		logError(err)
 		return "", err
 	}
 
@@ -394,21 +362,21 @@ func GetJID(msg string) (string, os.Error) {
 	*/
 	node := xmlDoc.SelectNode(nsBind, "jid")
 	if node != nil {
-		LogVerbose("jid value: %s", node.Value)
+		logVerbose("jid value: %s", node.Value)
 		return node.Value, nil
 	}
 
-	LogVerbose("jid value not found")
-	return "", os.NewError(fmt.Sprintf("No JID found in: ", msg))
+	logVerbose("jid value not found")
+	return "", os.NewError(fmt.Sprintf("No JID found in: %s", msg))
 }
 
-func GetMessage(msg string) (*MessageUpdate, os.Error) {
+func getMessage(msg string) (MessageUpdate, os.Error) {
 	var tempMessage MessageUpdate
 
 	xmlDoc := xmlx.New()
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
-		return nil, err
+		logError(err)
+		return tempMessage, err
 	}
 
 	/*
@@ -423,7 +391,7 @@ func GetMessage(msg string) (*MessageUpdate, os.Error) {
 	*/
 	node := xmlDoc.SelectNode("", "message")
 	if node != nil {
-		tempMessage.From = node.GetAttr("", "from")
+		tempMessage.JID = node.GetAttr("", "from")
 		tempMessage.Type = node.GetAttr("", "type")
 		tempMessage.Body = node.GetValue("", "body")
 
@@ -438,16 +406,16 @@ func GetMessage(msg string) (*MessageUpdate, os.Error) {
 		}
 	}
 
-	return &tempMessage, nil
+	return tempMessage, nil
 }
 
-func GetPresenceUpdates(msg string) ([]PresenceUpdate, os.Error) {
+func getPresenceUpdates(msg string) ([]PresenceUpdate, os.Error) {
 	var updates []PresenceUpdate
 	var tempUpdate PresenceUpdate
 
 	xmlDoc := xmlx.New()
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
+		logError(err)
 		return nil, err
 	}
 
@@ -471,7 +439,7 @@ func GetPresenceUpdates(msg string) ([]PresenceUpdate, os.Error) {
 		//photo present? http://xmpp.org/extensions/xep-0153.html
 		if tempnode := node.SelectNode(nsVcardUpdate, "x"); tempnode != nil {
 			tempUpdate.PhotoHash = tempnode.GetValue(nsVcardUpdate, "photo")
-			LogVerbose("PhotoHash In Presence Update: %s", tempUpdate.PhotoHash)
+			logVerbose("PhotoHash In Presence Update: %s", tempUpdate.PhotoHash)
 		}
 		updates = append(updates, tempUpdate)
 	}
@@ -479,12 +447,12 @@ func GetPresenceUpdates(msg string) ([]PresenceUpdate, os.Error) {
 	return updates, nil
 }
 
-func GetRoster(msg string) (map[string]*Contact, os.Error) {
+func getRoster(msg string) (map[string]*Contact, os.Error) {
 	contactMap := make(map[string]*Contact)
 
 	xmlDoc := xmlx.New()
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
+		logError(err)
 		return nil, err
 	}
 
@@ -516,12 +484,12 @@ func GetRoster(msg string) (map[string]*Contact, os.Error) {
 /**
  * For each feature type, return a slice of values
  */
-func GetFeatures(msg string) (map[string][]string, os.Error) {
+func getFeatures(msg string) (map[string][]string, os.Error) {
 	keyValueMap := make(map[string][]string)
 
 	xmlDoc := xmlx.New()
 	if err := xmlDoc.LoadString(msg); err != nil {
-		LogError(err)
+		logError(err)
 		return nil, err
 	}
 
@@ -536,7 +504,7 @@ func GetFeatures(msg string) (map[string][]string, os.Error) {
 	nodes := xmlDoc.SelectNodes(nsSASL, "mechanism")
 	for _, node := range nodes {
 		keyValueMap["mechanism"] = append(keyValueMap["mechanism"], node.Value)
-		LogVerbose("mechanism: %s", node.Value)
+		logVerbose("mechanism: %s", node.Value)
 	}
 
 	/*
@@ -547,7 +515,7 @@ func GetFeatures(msg string) (map[string][]string, os.Error) {
 	nodes = xmlDoc.SelectNodes(nsBind, "bind")
 	for _, node := range nodes {
 		keyValueMap["bind"] = append(keyValueMap["bind"], node.Value)
-		LogVerbose("bind: %s", node.Value)
+		logVerbose("bind: %s", node.Value)
 	}
 
 	/*
@@ -558,7 +526,7 @@ func GetFeatures(msg string) (map[string][]string, os.Error) {
 	nodes = xmlDoc.SelectNodes(nsSession, "session")
 	for _, node := range nodes {
 		keyValueMap["session"] = append(keyValueMap["session"], node.Value)
-		LogVerbose("session: %s", node.Value)
+		logVerbose("session: %s", node.Value)
 	}
 
 	return keyValueMap, nil
@@ -568,12 +536,12 @@ func GetFeatures(msg string) (map[string][]string, os.Error) {
  *  for challenge type, determine appropriate response
  * 	responding to an SASL challenge: http://www.ietf.org/rfc/rfc2831.txt 
  **/
-func GetChallengeResp_DIGESTMD5(challenge string, username string, password string, cnonce string, forceRealm string) (string, os.Error) {
+func getChallengeResp_DIGESTMD5(challenge string, username string, password string, cnonce string, forceRealm string) (string, os.Error) {
 	keyValueMap := make(map[string]string)
 	xmlDoc := xmlx.New()
 
 	if err := xmlDoc.LoadString(challenge); err != nil {
-		LogError(err)
+		logError(err)
 		return "", err
 	}
 
@@ -581,8 +549,8 @@ func GetChallengeResp_DIGESTMD5(challenge string, username string, password stri
 	if node == nil {
 		return "", os.NewError(fmt.Sprintf("No Challenge in: ", challenge))
 	}
-	LogVerbose("urn:ietf:params:xml:ns:xmpp-sasl,challenge Node found")
-	LogVerbose("challenge: %s", node.Value)
+	logVerbose("urn:ietf:params:xml:ns:xmpp-sasl,challenge Node found")
+	logVerbose("challenge: %s", node.Value)
 
 	/*
 		<challenge xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>
@@ -603,17 +571,17 @@ func GetChallengeResp_DIGESTMD5(challenge string, username string, password stri
 
 	dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(node.Value)))
 	if _, err := base64.StdEncoding.Decode(dbuf, []byte(node.Value)); err != nil {
-		LogVerbose("Error Decoding.")
+		logVerbose("Error Decoding.")
 	}
-	LogVerbose("Decoded: %s", dbuf)
+	logVerbose("Decoded: %s", dbuf)
 
 	//tokenize challenge properties, and store in map for convenience
 	//some of them will be reused to send the response
 	tokens := strings.Split(string(dbuf), ",", -1)
 	for _, tok := range tokens {
-		LogVerbose("token: " + tok)
+		logVerbose("token: " + tok)
 		pair := strings.Split(tok, "=", 2)
-		LogVerbose(pair[0] + ":" + pair[1])
+		logVerbose(pair[0] + ":" + pair[1])
 		keyValueMap[pair[0]] = strings.Trim(pair[1], "'\"")
 	}
 
@@ -672,7 +640,7 @@ func GetChallengeResp_DIGESTMD5(challenge string, username string, password stri
 	hash.Write(A1)
 	HA1 := hash.Sum()
 	HEXHA1 := strings.ToLower(fmt.Sprintf("%x", HA1))
-	LogVerbose("HEXHA1: %s", HEXHA1)
+	logVerbose("HEXHA1: %s", HEXHA1)
 
 	/* HEX(H(A2)) */
 	digesturi := "xmpp/" + realm
@@ -681,13 +649,13 @@ func GetChallengeResp_DIGESTMD5(challenge string, username string, password stri
 	hash.Write([]byte(A2))
 	HA2 := string(hash.Sum())
 	HEXHA2 := strings.ToLower(fmt.Sprintf("%x", HA2))
-	LogVerbose("HEXHA2: %s", HEXHA2)
+	logVerbose("HEXHA2: %s", HEXHA2)
 
 	hash.Reset()
 	hash.Write([]byte(HEXHA1 + ":" + keyValueMap["nonce"] + ":" + noncecount + ":" + cnonce + ":" + keyValueMap["qop"] + ":" + HEXHA2))
 	KD := string(hash.Sum())
 	HEXKD := strings.ToLower(fmt.Sprintf("%x", KD))
-	LogVerbose("HEXKD: %s", HEXKD)
+	logVerbose("HEXKD: %s", HEXKD)
 
 	reply := "username='" + username + "'" +
 		",realm='" + realm + "'" +
@@ -702,7 +670,7 @@ func GetChallengeResp_DIGESTMD5(challenge string, username string, password stri
 	reply = strings.Replace(reply, "'", "\"", -1)
 
 	//is base64 encoded to begin with based on IMAP4 AUTHENTICATE command [RFC 2060],
-	LogVerbose("formed reply: %s", reply)
+	logVerbose("formed reply: %s", reply)
 	base64buf := make([]byte, base64.StdEncoding.EncodedLen(len(reply)))
 	base64.StdEncoding.Encode(base64buf, []byte(reply))
 

@@ -14,6 +14,9 @@ const (
 	Verbose
 )
 
+/**************************************************************
+ * VARS
+ **************************************************************/
 var verbosity = Normal
 
 /**************************************************************
@@ -23,26 +26,20 @@ func SetVerbosity(level int) {
 	verbosity = level
 }
 
-func LogPrompt() {
+func log(f string, args ...interface{}) {
 	if verbosity > Silent {
-		fmt.Printf("->")
+		fmt.Printf(f+"\n", args...)
 	}
 }
 
-func Log(f string, args ...interface{}) {
-	if verbosity > Silent {
-		fmt.Printf(f+"\n->", args...)
-	}
-}
-
-func LogVerbose(f string, args ...interface{}) {
+func logVerbose(f string, args ...interface{}) {
 	if verbosity > Normal {
-		fmt.Printf(f+"\n->", args...)
+		fmt.Printf(f+"\n", args...)
 	}
 }
 
-func LogError(err os.Error) {
+func logError(err os.Error) {
 	if err != nil {
-		fmt.Printf("%s\n->", err.String())
+		fmt.Printf("%s\n", err.String())
 	}
 }

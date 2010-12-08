@@ -3,7 +3,7 @@ include $(GOROOT)/src/Make.inc
 TARG=gojabber
 
 GOFILES=\
-	xmpp_gateway.go\
+	xmpp_connection.go\
 	xmpp_parsing.go\
 	debug.go
 
