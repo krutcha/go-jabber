@@ -26,9 +26,9 @@ This Package provides basic XMPP protocol support in GO.
  to work.
  
  step 1: open a connection to the XMPP server
-	     
-	     jcon, err := gojabber.SpawnConnection(host, domain, 
-	                  username, password, port, useTLS)
+         
+         jcon, err := gojabber.SpawnConnection(host, domain, 
+                      username, password, port, useTLS)
          
          This will open a connection and begin the authentication process,
          obtain a roster, and begin to recieve presence updates.  jcon is
@@ -36,36 +36,36 @@ This Package provides basic XMPP protocol support in GO.
          
 step 2: register callbacks
 
-		currently 4 callbacks are supported and can be registered as follows:
+        currently 4 callbacks are supported and can be registered as follows:
 
-		-1 avatar updates - user photo has changed
-		jcon.ConnectHook_AvatarUpdate(
-			func(host string, avatar gojabber.AvatarUpdate) {code})
+        -1 avatar updates - user photo has changed
+        jcon.ConnectHook_AvatarUpdate(
+            func(host string, avatar gojabber.AvatarUpdate) {code})
 
-		-2 incoming messages - chat messages from users
-		jcon.ConnectHook_Msg(
-			func(host string, msg gojabber.MessageUpdate) {code})
+        -2 incoming messages - chat messages from users
+        jcon.ConnectHook_Msg(
+            func(host string, msg gojabber.MessageUpdate) {code})
 
-		-3 typing notification - if a user is actively typing a message to you
-		jcon.ConnectHook_Typing(
-			func(host string, JID string) {code})
+        -3 typing notification - if a user is actively typing a message to you
+        jcon.ConnectHook_Typing(
+            func(host string, JID string) {code})
 
-		-4 status updates - online, offline, away etc
-		jcon.ConnectHook_Status(
-			func(host string, JID string, status string) {code})
-		
+        -4 status updates - online, offline, away etc
+        jcon.ConnectHook_Status(
+            func(host string, JID string, status string) {code})
+        
  step 3: call call commands
  
- 		 just 2 commands supported right now to call on a jabber connection:
- 		 
- 		 -1 Disconnect() - kill off the connection, clean up it's channels etc
- 		 -2 SendMessage(msg string, contact *Contact, fromJID string)
- 		 				 - send a chat message to a user
+         just 2 commands supported right now to call on a jabber connection:
+         
+         -1 Disconnect() - kill off the connection, clean up it's channels etc
+         -2 SendMessage(msg string, contact *Contact, fromJID string)
+                         - send a chat message to a user
 
  For examples of use of all of the above, see /example/command_line.go 
  
  KNOWN ISSUES: 
- 	   -there is no data synchronization around the map structures etc contained
+       -there is no data synchronization around the map structures etc contained
         in the JabberCon struct, so wierdness could occur.
        -there is a dirty hack in the XML net reader that could cause partial
         and unparseable messages to be received.
