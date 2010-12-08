@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sort"
+	"io/ioutil"
 )
 
 /**************************************************************
@@ -185,7 +186,9 @@ func main() {
 						//Register Callbacks
 						jcon.ConnectHook_AvatarUpdate(
 							func(host string, avatar gojabber.AvatarUpdate) {
-								log(" +++Avatar Received, [%s,%s--%s,%s]", host, avatar.JID, jcon.JidToContact[avatar.JID].Name, avatar.Type)
+								filename := "AV_" + avatar.JID + "." + strings.Split(avatar.Type, "/", -1)[1]
+								log(" +++Avatar Received, [%s,%s--%s,%s], writing to %s", host, avatar.JID, jcon.JidToContact[avatar.JID].Name, avatar.Type, filename)
+								ioutil.WriteFile(filename, avatar.Photo, 0644)
 							})
 						jcon.ConnectHook_Msg(
 							func(host string, msg gojabber.MessageUpdate) {
