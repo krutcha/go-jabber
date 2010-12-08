@@ -365,7 +365,9 @@ func startNetReader(con net.Conn) chan string {
 				stringBuff = append(stringBuff, respBuf[0:count]...)
 
 				//temporary hack, pull until a matching the last char of a
-				//multipart reat is a />
+				//multipart read is a />
+				//this should obviously be a correct start tag/end tag
+				//matchup
 				if stringBuff[len(stringBuff)-1] == '>' {
 					logVerbose("RECEIVING:\"" + string(stringBuff) + "\"")
 					inchan <- string(stringBuff)
