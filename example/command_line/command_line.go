@@ -65,11 +65,11 @@ func printHelp() {
 	log("/connect -u=user -pw=pass -h=jabber.org")
 }
 
-func printWelcomeBanner(){
+func printWelcomeBanner() {
 	log("WELCOME to Go-Jabber")
 	log("")
 	log("Available commands:")
-	printHelp();
+	printHelp()
 }
 
 func deleteCon(S []*gojabber.JabberCon, i int) []*gojabber.JabberCon {
@@ -110,7 +110,7 @@ func main() {
 	 * INITIAL SETUP STUFF 
 	 */
 	printWelcomeBanner()
-	
+
 	//Set local and gojabber pkg logging levels
 	if verbose {
 		gojabber.SetVerbosity(gojabber.Verbose)
@@ -184,19 +184,19 @@ func main() {
 						jabberCons = append(jabberCons, jcon)
 						//Register Callbacks
 						jcon.ConnectHook_AvatarUpdate(
-							func(host string, avatar gojabber.AvatarUpdate){
+							func(host string, avatar gojabber.AvatarUpdate) {
 								log(" +++Avatar Received, [%s,%s--%s,%s]", host, avatar.JID, jcon.JidToContact[avatar.JID].Name, avatar.Type)
 							})
 						jcon.ConnectHook_Msg(
-							func(host string, msg gojabber.MessageUpdate){
+							func(host string, msg gojabber.MessageUpdate) {
 								log(".oO(%s:%s: %s)", host, jcon.JidToContact[msg.JID].Name, msg.Body)
 							})
 						jcon.ConnectHook_Typing(
-							func(host string, JID string){
+							func(host string, JID string) {
 								log(" +++%s:%s: -> typing <-", host, jcon.JidToContact[JID].Name)
 							})
 						jcon.ConnectHook_Status(
-							func(host string, JID string, status string){
+							func(host string, JID string, status string) {
 								log(" +++%s:%s: -> %s <-", host, jcon.JidToContact[JID].Name, status)
 							})
 					} else {

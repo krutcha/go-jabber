@@ -36,7 +36,7 @@ type JabberCon struct {
 	cleanup   func()
 	//callbacks
 	callBackVCard  func(host string, avatar AvatarUpdate)
-	callBackMsg	   func(host string, msg MessageUpdate)
+	callBackMsg    func(host string, msg MessageUpdate)
 	callBackTyping func(host string, JID string)
 	callBackStatus func(host string, JID string, status string)
 }
@@ -91,10 +91,10 @@ func SpawnConnection(host string, domain string, username string, password strin
 	}
 
 	if err != nil {
-		logVerbose("Connection to %s Failed", host + ":" + port)
+		logVerbose("Connection to %s Failed", host+":"+port)
 		return nil, err
 	} else {
-		logVerbose("Connection to %s Created", host + ":" + port)
+		logVerbose("Connection to %s Created", host+":"+port)
 	}
 
 	//kick off read/write threads
@@ -164,7 +164,9 @@ func SpawnConnection(host string, domain string, username string, password strin
 
 						} else {
 							logVerbose("UPDATE[%s] not found")
-							if(jcon.callBackStatus != nil){jcon.callBackStatus(jcon.Host, contact.JID, contact.Status)}
+							if jcon.callBackStatus != nil {
+								jcon.callBackStatus(jcon.Host, contact.JID, contact.Status)
+							}
 						}
 					}
 				}
@@ -178,7 +180,9 @@ func SpawnConnection(host string, domain string, username string, password strin
 							hash := sha1.New()
 							hash.Write(avatar.Photo)
 							contact.Avatar.PhotoHash = string(hash.Sum())
-							if(jcon.callBackVCard != nil){jcon.callBackVCard(jcon.Host, avatar)}
+							if jcon.callBackVCard != nil {
+								jcon.callBackVCard(jcon.Host, avatar)
+							}
 						}
 					}
 				}
@@ -187,11 +191,15 @@ func SpawnConnection(host string, domain string, username string, password strin
 				if message, err := getMessage(msg); err == nil {
 					if message.State == "composing" {
 						logVerbose("INFO[%s is typing]", jcon.JidToContact[message.JID].Name)
-						if(jcon.callBackTyping != nil){jcon.callBackTyping(jcon.Host, message.JID)}
+						if jcon.callBackTyping != nil {
+							jcon.callBackTyping(jcon.Host, message.JID)
+						}
 
 					} else if message.Body != "" {
-						logVerbose("MSG[from:%s, body:%s]", jcon.JidToContact[message.JID].Name, message.Body)			 	
-						if(jcon.callBackMsg != nil){jcon.callBackMsg(jcon.Host, message)}
+						logVerbose("MSG[from:%s, body:%s]", jcon.JidToContact[message.JID].Name, message.Body)
+						if jcon.callBackMsg != nil {
+							jcon.callBackMsg(jcon.Host, message)
+						}
 					}
 				}
 			case Features:
