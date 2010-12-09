@@ -65,11 +65,9 @@ step 2: register callbacks
  For examples of use of all of the above, see /example/command_line.go 
  
  KNOWN ISSUES: 
-       -sync tools added for access to shared JabberCon structs are not 
+       -sync mechanisms added for access to shared JabberCon structs are not 
         enforced
-       -there is a dirty hack in the XML net reader that could cause partial
-        and unparseable messages to be received.
-
+        
 ================================================================================
  LICENSE
 ================================================================================

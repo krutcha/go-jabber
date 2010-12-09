@@ -8,6 +8,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"sync"
+	"strings"
 )
 
 /**************************************************************
@@ -403,6 +404,96 @@ func sendInitialPresence(writechan chan string) {
 /**************************************************************
  * INTERNAL - Connection goroutines to sit on sockets
  **************************************************************/
+func getTagType(tag string) string {
+	//stream:stream id="EB0F9B28" from="chat.facebook.com" .. becomes stream:stream 
+	//mechanisms xmlns="urn:ietf:params:xml:ns:xmpp-sasl"> becomes mechanisms
+	tagTokens := strings.Split(tag, " ", -1)
+
+	//stream:stream becomes [stream,stream]
+	//mechanisms becomes [mechanisms]
+	tagTokens = strings.Split(tagTokens[0], ":", -1)
+
+	if len(tagTokens) == 1 {
+		return tagTokens[0]
+	}
+
+	return tagTokens[1]
+}
+
+func hasMatchingTags(buff []uint8) bool {
+	startToken := 1
+	startString := string(buff)
+
+	//good solid painful example
+	/*
+	   <?xml version="1.0"?>
+	   <stream:stream id="EB0F9B28" from="chat.facebook.com" xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams" version="1.0" xml:lang="en">
+	       <stream:features>
+	           <mechanisms xmlns="urn:ietf:params:xml:ns:xmpp-sasl">
+	               <mechanism>X-FACEBOOK-PLATFORM</mechanism>
+	               <mechanism>DIGEST-MD5</mechanism>
+	           </mechanisms>
+	       </stream:features>
+	*/
+
+	logVerbose("checking start end match[%s]", buff)
+
+	//strip <'s and tokenize around them
+	tokens := strings.Split(startString, "<", -1)
+
+	//need a start nil, and at least a start tag and end tag
+	if len(tokens) < 3 {
+		logVerbose("throwaway token")
+		return true
+	}
+
+	//first char of any XML should be <, so first token should be nil
+	if tokens[0] != "" {
+		logVerbose("no match, bad XML")
+		return false
+	}
+
+	for _, token := range tokens[1:] {
+		//chew through invalid start tokens
+		logVerbose("token [%s]", token)
+		if token[0] == '?' {
+			logVerbose("skipping ? tag")
+			startToken++
+			continue
+		}
+
+		//stream:stream ... may or may not contain namespace (should)
+		//but accept XXXXX:stream or stream
+		tag := getTagType(token)
+		if tag == "stream" {
+			logVerbose("skipping stream tag")
+			startToken++
+			continue
+		}
+
+		//otherwise, we should have our start point
+		break
+	}
+
+	if startToken >= (len(tokens) - 1) {
+		logVerbose("no match, too few tokens")
+		return false
+	}
+
+	tag1 := getTagType(tokens[startToken])
+	logVerbose("Tag1:%s", tag1)
+	tag2 := getTagType(tokens[len(tokens)-1])
+	logVerbose("Tag2:%s", tag2)
+
+	if strings.Contains(tag2, tag1) {
+		logVerbose("MATCH")
+		return true
+	}
+
+	logVerbose("MISMATCH")
+	return false
+}
+
 func startNetReader(con net.Conn) chan string {
 	inchan := make(chan string, 100)
 	respBuf := make([]uint8, 4096)
@@ -418,15 +509,13 @@ func startNetReader(con net.Conn) chan string {
 		//read forever
 		for {
 			if count, err := con.Read(respBuf); err == nil {
+				//add new data to string buffer
 				stringBuff = append(stringBuff, respBuf[0:count]...)
-
-				//temporary hack, pull until a matching the last char of a
-				//multipart read is a />
-				//this should obviously be a correct start tag/end tag
-				//matchup
-				if stringBuff[len(stringBuff)-1] == '>' {
-					logVerbose("RECEIVING:\"" + string(stringBuff) + "\"")
+				logVerbose("RECEIVING:\"" + string(stringBuff) + "\"")
+				if hasMatchingTags(stringBuff) {
+					logVerbose("ACCEPTING:\"" + string(stringBuff) + "\"")
 					inchan <- string(stringBuff)
+					//empty string buffer
 					stringBuff = stringBuff[:0]
 				}
 			} else {
