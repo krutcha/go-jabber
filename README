@@ -65,8 +65,8 @@ step 2: register callbacks
  For examples of use of all of the above, see /example/command_line.go 
  
  KNOWN ISSUES: 
-       -there is no data synchronization around the map structures etc contained
-        in the JabberCon struct, so wierdness could occur.
+       -sync tools added for access to shared JabberCon structs are not 
+        enforced
        -there is a dirty hack in the XML net reader that could cause partial
         and unparseable messages to be received.
 
