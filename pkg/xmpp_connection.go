@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/sha1"
 	"encoding/base64"
+	"sync"
 )
 
 /**************************************************************
@@ -20,15 +21,17 @@ const (
 )
 
 /**************************************************************
- * TYPES
+ * TYPES AND THEIR METHODS
  **************************************************************/
+//JabberCon
 type JabberCon struct {
 	//public
-	JID          string
 	JidToContact map[string]*Contact
 	NameToJid    map[string]string
-	Host         string
 	//private
+	rwlock    sync.RWMutex
+	host      string
+	jid       string
 	user_cmd  chan string
 	user_resp chan string
 	net_in    chan string
@@ -41,9 +44,7 @@ type JabberCon struct {
 	callBackStatus func(host string, JID string, status string)
 }
 
-/**************************************************************
- * EXPORTED - CLIENT CALLBACK REGISTRATION 
- **************************************************************/
+// JabberCon - CLIENT CALLBACK REGISTRATION 
 func (jcon *JabberCon) ConnectHook_AvatarUpdate(onVCardUpdate func(host string, avatar AvatarUpdate)) {
 	jcon.callBackVCard = onVCardUpdate
 }
@@ -60,9 +61,7 @@ func (jcon *JabberCon) ConnectHook_Status(onStatus func(host string, JID string,
 	jcon.callBackStatus = onStatus
 }
 
-/**************************************************************
- * EXPORTED - CLIENT COMMANDS
- **************************************************************/
+// JabberCon - CLIENT FUNCTIONS
 func (jcon *JabberCon) Disconnect() {
 	jcon.cleanup()
 }
@@ -71,6 +70,41 @@ func (jcon *JabberCon) SendMessage(msg string, contact *Contact, fromJID string)
 	sendMessage(jcon.net_out, msg, contact, fromJID)
 }
 
+func (jcon *JabberCon) GetJID() string {
+	return jcon.jid
+}
+
+func (jcon *JabberCon) GetHost() string {
+	return jcon.host
+}
+
+func (jcon *JabberCon) GetName(jid string) string {
+	jcon.RLock()
+	name := jcon.JidToContact[jid].Name
+	jcon.RUnlock()
+	return name
+}
+
+func (jcon *JabberCon) GetContact(jid string) (*Contact, bool) {
+	jcon.RLock()
+	contact, exists := jcon.JidToContact[jid]
+	jcon.RUnlock()
+	return contact, exists
+}
+
+// JabberCon - CLIENT READ LOCKS (play nice!)
+func (jcon *JabberCon) RLock() {
+	logVerbose("R LOCK TAKEN")
+	jcon.rwlock.RLock()
+}
+
+func (jcon *JabberCon) RUnlock() {
+	logVerbose("R LOCK RELEASED")
+	jcon.rwlock.RUnlock()
+}
+/**************************************************************
+ * EXPORTED
+ **************************************************************/
 /**
  * Create a network connection to XMPP server, authenticate, request roster, and broadcast initial presence
  */
@@ -104,7 +138,7 @@ func SpawnConnection(host string, domain string, username string, password strin
 	jcon.user_resp = make(chan string)
 	jcon.NameToJid = make(map[string]string)
 	jcon.JidToContact = make(map[string]*Contact)
-	jcon.Host = host
+	jcon.host = host
 	jcon.cleanup = func() {
 		logVerbose("gojabber - cleaning up: %s", host)
 		endStream(jcon.net_out)
@@ -140,32 +174,35 @@ func SpawnConnection(host string, domain string, username string, password strin
 			case Presence:
 				if updates, err := getPresenceUpdates(msg); err == nil {
 					for _, update := range updates {
-						if contact, exists := jcon.JidToContact[update.JID]; exists == true {
-							if update.Type == "unavailable" {
-								contact.Show = "offline"
-							} else {
-								if update.Show != "" {
-									contact.Show = update.Show
+						if contact, exists := jcon.GetContact(update.JID); exists == true {
+							jcon.wLock() //LOCK FOR WRITE
+							{
+								if update.Type == "unavailable" {
+									contact.Show = "offline"
 								} else {
-									contact.Show = "online"
-								}
-								if update.Status != "" {
-									contact.Status = update.Status
-								}
-								if update.PhotoHash != "" {
-									if contact.Avatar.PhotoHash != update.PhotoHash {
-										logVerbose("existing photo %s doesn't match %s", contact.Avatar.PhotoHash, update.PhotoHash)
-										//a new avatar must be present, request vcard
-										requestVcard(jcon.net_out, jcon.JID, update.JID)
+									if update.Show != "" {
+										contact.Show = update.Show
+									} else {
+										contact.Show = "online"
+									}
+									if update.Status != "" {
+										contact.Status = update.Status
+									}
+									if update.PhotoHash != "" {
+										if contact.Avatar.PhotoHash != update.PhotoHash {
+											logVerbose("existing photo %s doesn't match %s", contact.Avatar.PhotoHash, update.PhotoHash)
+											//a new avatar must be present, request vcard
+											requestVcard(jcon.net_out, jcon.jid, update.JID)
+										}
 									}
 								}
 							}
+							jcon.wUnlock() //UNLOCK
 							logVerbose("UPDATE[%s, %s, %s, hasphoto:%s]", contact.Name, contact.Show, contact.Status, contact.Avatar.PhotoHash)
-
 						} else {
 							logVerbose("UPDATE[%s] not found")
 							if jcon.callBackStatus != nil {
-								jcon.callBackStatus(jcon.Host, contact.JID, contact.Status)
+								jcon.callBackStatus(jcon.host, contact.JID, contact.Status)
 							}
 						}
 					}
@@ -174,14 +211,18 @@ func SpawnConnection(host string, domain string, username string, password strin
 				if avatars, err := getAvatars(msg); err == nil {
 					for _, avatar := range avatars {
 						logVerbose("VCARD[%s, %s]", avatar.JID, avatar.Type)
-						if contact, exists := jcon.JidToContact[avatar.JID]; exists == true {
-							contact.Avatar.Photo = avatar.Photo
-							contact.Avatar.Type = avatar.Type
-							hash := sha1.New()
-							hash.Write(avatar.Photo)
-							contact.Avatar.PhotoHash = string(hash.Sum())
+						if contact, exists := jcon.GetContact(avatar.JID); exists == true {
+							jcon.wLock() //LOCK FOR WRITE
+							{
+								contact.Avatar.Photo = avatar.Photo
+								contact.Avatar.Type = avatar.Type
+								hash := sha1.New()
+								hash.Write(avatar.Photo)
+								contact.Avatar.PhotoHash = string(hash.Sum())
+							}
+							jcon.wUnlock() //UNLOCK
 							if jcon.callBackVCard != nil {
-								jcon.callBackVCard(jcon.Host, avatar)
+								jcon.callBackVCard(jcon.host, avatar)
 							}
 						}
 					}
@@ -190,15 +231,15 @@ func SpawnConnection(host string, domain string, username string, password strin
 			case Message:
 				if message, err := getMessage(msg); err == nil {
 					if message.State == "composing" {
-						logVerbose("INFO[%s is typing]", jcon.JidToContact[message.JID].Name)
+						logVerbose("INFO[%s is typing]", jcon.GetName(message.JID))
 						if jcon.callBackTyping != nil {
-							jcon.callBackTyping(jcon.Host, message.JID)
+							jcon.callBackTyping(jcon.host, message.JID)
 						}
 
 					} else if message.Body != "" {
-						logVerbose("MSG[from:%s, body:%s]", jcon.JidToContact[message.JID].Name, message.Body)
+						logVerbose("MSG[from:%s, body:%s]", jcon.GetName(message.JID), message.Body)
 						if jcon.callBackMsg != nil {
-							jcon.callBackMsg(jcon.Host, message)
+							jcon.callBackMsg(jcon.host, message)
 						}
 					}
 				}
@@ -249,24 +290,29 @@ func SpawnConnection(host string, domain string, username string, password strin
 				startStream(jcon.net_out, domain)
 			case JID:
 				//<session establishment - [6], request session>
-				jcon.JID, err = getJID(msg)
+				jcon.jid, err = getJID(msg)
 				logError(err)
 
 				if err == nil {
 					state = State_Connected
 					logVerbose("STATE: Connected")
-					logVerbose("Got JID: %s", jcon.JID)
+					logVerbose("Got JID: %s", jcon.jid)
 					requestSession(jcon.net_out, domain)
 				}
 			case Session:
 				//<session establishment - [7], get the roster>
-				requestRoster(jcon.net_out, jcon.JID)
+				requestRoster(jcon.net_out, jcon.jid)
 			case Roster:
 				//<session establishment - [8], indicate presence>
-				jcon.JidToContact, err = getRoster(msg)
-				for _, contact := range jcon.JidToContact {
-					jcon.NameToJid[contact.Name] = contact.JID
+				jcon.wLock() //LOCK FOR WRITE
+				{
+					jcon.JidToContact, err = getRoster(msg)
+					for _, contact := range jcon.JidToContact {
+						jcon.NameToJid[contact.Name] = contact.JID
+					}
 				}
+				jcon.wUnlock() //UNLOCK
+
 				logError(err)
 				sendInitialPresence(jcon.net_out)
 			case Error, SASLFailure:
@@ -283,6 +329,16 @@ func SpawnConnection(host string, domain string, username string, password strin
 /**************************************************************
  * INTERNAL - Simple XMPP message functions
  **************************************************************/
+func (jcon *JabberCon) wLock() {
+	logVerbose("W LOCK TAKEN")
+	jcon.rwlock.Lock()
+}
+
+func (jcon *JabberCon) wUnlock() {
+	logVerbose("W LOCK RELEASED")
+	jcon.rwlock.Unlock()
+}
+
 func startStream(writechan chan string, domain string) {
 	logVerbose("Sending Stream Start")
 	writechan <- XMLVERSION+"<stream:stream "+"to='"+domain+"' "+"xmlns='"+nsClient+"' "+"xmlns:stream='"+nsStream+"' "+"version='1.0'>"

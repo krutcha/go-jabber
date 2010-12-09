@@ -147,7 +147,7 @@ func main() {
 			case "/servers":
 				i := 0
 				for _, jcon := range jabberCons {
-					log("[%d]%s:%s\n", i, jcon.Host, jcon.JID)
+					log("[%d]%s:%s\n", i, jcon.GetHost(), jcon.GetJID())
 					i++
 				}
 			case "/connect":
@@ -187,20 +187,20 @@ func main() {
 						jcon.ConnectHook_AvatarUpdate(
 							func(host string, avatar gojabber.AvatarUpdate) {
 								filename := "AV_" + avatar.JID + "." + strings.Split(avatar.Type, "/", -1)[1]
-								log(" +++Avatar Received, [%s,%s--%s,%s], writing to %s", host, avatar.JID, jcon.JidToContact[avatar.JID].Name, avatar.Type, filename)
+								log(" +++Avatar Received, [%s,%s--%s,%s], writing to %s", host, avatar.JID, jcon.GetName(avatar.JID), avatar.Type, filename)
 								ioutil.WriteFile(filename, avatar.Photo, 0644)
 							})
 						jcon.ConnectHook_Msg(
 							func(host string, msg gojabber.MessageUpdate) {
-								log(".oO(%s:%s: %s)", host, jcon.JidToContact[msg.JID].Name, msg.Body)
+								log(".oO(%s:%s: %s)", host, jcon.GetName(msg.JID), msg.Body)
 							})
 						jcon.ConnectHook_Typing(
 							func(host string, JID string) {
-								log(" +++%s:%s: -> typing <-", host, jcon.JidToContact[JID].Name)
+								log(" +++%s:%s: -> typing <-", host, jcon.GetName(JID))
 							})
 						jcon.ConnectHook_Status(
 							func(host string, JID string, status string) {
-								log(" +++%s:%s: -> %s <-", host, jcon.JidToContact[JID].Name, status)
+								log(" +++%s:%s: -> %s <-", host, jcon.GetName(JID), status)
 							})
 					} else {
 						logError(err)
@@ -213,47 +213,55 @@ func main() {
 				printHelp()
 			case "/who":
 				for _, jcon := range jabberCons {
-					log("%s - who", jcon.Host)
-					sorted := make([]string, len(jcon.JidToContact))
-					//stash names in a slice
-					i := 0
-					for _, contact := range jcon.JidToContact {
-						sorted[i] = contact.Name
-						i++
-					}
-					//sort em
-					sort.SortStrings(sorted)
-					//display records, sorted by name
-					for _, name := range sorted {
-						contact := jcon.JidToContact[jcon.NameToJid[name]]
-						if contact.Show != "offline" {
-							log("\t%s,(%s:%s)", contact.Name, contact.Show, contact.Status)
+					log("%s - who", jcon.GetHost())
+					jcon.RLock()
+					{
+						sorted := make([]string, len(jcon.JidToContact))
+						//stash names in a slice
+						i := 0
+						for _, contact := range jcon.JidToContact {
+							sorted[i] = contact.Name
+							i++
+						}
+						//sort em
+						sort.SortStrings(sorted)
+						//display records, sorted by name
+						for _, name := range sorted {
+							contact := jcon.JidToContact[jcon.NameToJid[name]]
+							if contact.Show != "offline" {
+								log("\t%s,(%s:%s)", contact.Name, contact.Show, contact.Status)
+							}
 						}
 					}
+					jcon.RUnlock()
 				}
 			case "/tell":
 				if len(tokens) > 2 {
 					for _, jcon := range jabberCons {
 						var matches []*gojabber.Contact
-						logVerbose("%s - /tell", jcon.Host)
-						for _, contact := range jcon.JidToContact {
-							if strings.Contains(contact.Name, tokens[1]) {
-								if contact.Show != "offline" {
-									logVerbose("Matched: %s -> %s", tokens[1], contact.Name)
-									matches = append(matches, contact)
+						logVerbose("%s - /tell", jcon.GetHost())
+						jcon.RLock()
+						{
+							for _, contact := range jcon.JidToContact {
+								if strings.Contains(contact.Name, tokens[1]) {
+									if contact.Show != "offline" {
+										logVerbose("Matched: %s -> %s", tokens[1], contact.Name)
+										matches = append(matches, contact)
+									}
 								}
 							}
-						}
-						if len(matches) == 1 {
-							jcon.SendMessage(strings.Join(tokens[2:], " "), matches[0], jcon.JID)
-						} else if len(matches) > 1 {
-							log("Be more specific [%s] matched: ", jcon.Host)
-							for _, contact := range matches {
-								log("%s", contact.Name)
+							if len(matches) == 1 {
+								jcon.SendMessage(strings.Join(tokens[2:], " "), matches[0], jcon.GetJID())
+							} else if len(matches) > 1 {
+								log("Be more specific [%s] matched: ", jcon.GetHost())
+								for _, contact := range matches {
+									log("%s", contact.Name)
+								}
+							} else {
+								log("No matches found")
 							}
-						} else {
-							log("No matches found")
 						}
+						jcon.RUnlock()
 					}
 				}
 			case "/quit":
