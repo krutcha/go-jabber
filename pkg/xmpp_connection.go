@@ -85,7 +85,7 @@ func SpawnConnection(host string, domain string, username string, password strin
 
 	switch useTLS {
 	case true:
-		con, err = tls.Dial("tcp", "", host+":"+port)
+		con, err = tls.Dial("tcp", "", host+":"+port, nil)
 	case false:
 		con, err = net.Dial("tcp", "", host+":"+port)
 	}
