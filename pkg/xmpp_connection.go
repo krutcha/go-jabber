@@ -328,7 +328,7 @@ func SpawnConnection(host string, domain string, username string, password strin
 }
 
 /**************************************************************
- * INTERNAL - Simple XMPP message functions
+ * INTERNAL - Locking Mechanism
  **************************************************************/
 func (jcon *JabberCon) wLock() {
 	logVerbose("W LOCK TAKEN")
@@ -339,6 +339,10 @@ func (jcon *JabberCon) wUnlock() {
 	logVerbose("W LOCK RELEASED")
 	jcon.rwlock.Unlock()
 }
+
+/**************************************************************
+ * INTERNAL - Simple XMPP message functions
+ **************************************************************/
 
 func startStream(writechan chan string, domain string) {
 	logVerbose("Sending Stream Start")
@@ -402,7 +406,7 @@ func sendInitialPresence(writechan chan string) {
 }
 
 /**************************************************************
- * INTERNAL - Connection goroutines to sit on sockets
+ * INTERNAL - Stream Parsing to match up tags
  **************************************************************/
 func getTagType(tag string) string {
 	//stream:stream id="EB0F9B28" from="chat.facebook.com" .. becomes stream:stream 
@@ -494,6 +498,9 @@ func hasMatchingTags(buff []uint8) bool {
 	return false
 }
 
+/**************************************************************
+ * INTERNAL - Connection goroutines to sit on sockets
+ **************************************************************/
 func startNetReader(con net.Conn) chan string {
 	inchan := make(chan string, 100)
 	respBuf := make([]uint8, 4096)
