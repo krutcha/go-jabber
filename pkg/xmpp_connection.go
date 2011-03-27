@@ -200,11 +200,11 @@ func SpawnConnection(host string, domain string, username string, password strin
 							}
 							jcon.wUnlock() //UNLOCK
 							logVerbose("UPDATE[%s, %s, %s, hasphoto:%s]", contact.Name, contact.Show, contact.Status, contact.Avatar.PhotoHash)
-						} else {
-							logVerbose("UPDATE[%s] not found")
 							if jcon.callBackStatus != nil {
 								jcon.callBackStatus(jcon.host, contact.JID, contact.Status)
 							}
+						} else {
+							logVerbose("UPDATE[%s] not found", update.JID)
 						}
 					}
 				}
