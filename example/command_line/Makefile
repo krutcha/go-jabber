@@ -1,8 +1,8 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=gojabber
+TARG=gojabber_cl
 
-GOFILES=command_line.go
+GOFILES=gojabber_cl.go
 
 
 include $(GOROOT)/src/Make.cmd
