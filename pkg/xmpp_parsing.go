@@ -95,7 +95,7 @@ func getMessageType(msg string) (int, os.Error) {
 	}
 
 	logVerbose("Root:%s, ns:%s", xmlDoc.Root.Name.Local, xmlDoc.Root.Name.Space)
-	logVerbose("Child:%s, ns:%s", xmlDoc.Root.Children[0].Name.Local, xmlDoc.Root.Children[0].Name.Space)
+	//logVerbose("Child:%s, ns:%s", xmlDoc.Root.Children[0].Name.Local, xmlDoc.Root.Children[0].Name.Space)
 
 	/*
 		<presence xml:lang='en'>
