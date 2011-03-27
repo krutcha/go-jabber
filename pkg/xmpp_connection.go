@@ -485,7 +485,7 @@ func hasMatchingTags(buff []uint8) bool {
 	tag2 := getTagType(tokens[len(tokens)-1])
 	logVerbose("Tag2:%s", tag2)
 
-	if strings.Contains(tag2, tag1) {
+	if strings.Contains(tokens[len(tokens)-1], "/"+tag1) || strings.Contains(tokens[len(tokens)-1], "/stream:"+tag1) {
 		logVerbose("MATCH")
 		return true
 	}
