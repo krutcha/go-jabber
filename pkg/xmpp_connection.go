@@ -346,7 +346,7 @@ func (jcon *JabberCon) wUnlock() {
 
 func startStream(writechan chan string, domain string) {
 	logVerbose("Sending Stream Start")
-	writechan <- XMLVERSION+"<stream:stream "+"to='"+domain+"' "+"xmlns='"+nsClient+"' "+"xmlns:stream='"+nsStream+"' "+"version='1.0'>"
+	writechan <- XMLVERSION + "<stream:stream " + "to='" + domain + "' " + "xmlns='" + nsClient + "' " + "xmlns:stream='" + nsStream + "' " + "version='1.0'>"
 }
 
 func endStream(writechan chan string) {
@@ -356,41 +356,41 @@ func endStream(writechan chan string) {
 
 func startTLS(writechan chan string) {
 	logVerbose("sending startTLS")
-	writechan <- "<starttls xmlns='"+nsTLS+"'/>"
+	writechan <- "<starttls xmlns='" + nsTLS + "'/>"
 }
 
 func requestRoster(writechan chan string, JID string) {
 	logVerbose("Requesting Roster")
-	writechan <- "<iq from='"+JID+"' type='get' id='roster_1'><query xmlns='"+nsRoster+"'/></iq>"
+	writechan <- "<iq from='" + JID + "' type='get' id='roster_1'><query xmlns='" + nsRoster + "'/></iq>"
 }
 
 func requestSession(writechan chan string, domain string) {
 	logVerbose("Requesting Session")
-	writechan <- "<iq to='"+domain+"' type='set' id='sess_1'><session xmlns='"+nsSession+"'/></iq>"
+	writechan <- "<iq to='" + domain + "' type='set' id='sess_1'><session xmlns='" + nsSession + "'/></iq>"
 }
 
 func sendMessage(writechan chan string, msg string, contact *Contact, fromJID string) {
 	logVerbose("Sending msg [%s] to [%s]", msg, contact.Name)
-	writechan <- "<message to='"+contact.JID+"' from='"+fromJID+"' type='chat' xml:lang='en'><body>"+msg+"</body></message>"
+	writechan <- "<message to='" + contact.JID + "' from='" + fromJID + "' type='chat' xml:lang='en'><body>" + msg + "</body></message>"
 }
 
 func requestVcard(writechan chan string, fromJID string, toJID string) {
-	writechan <- "<iq from='"+fromJID+"' to='"+toJID+"' type='get' id='vc2'><vCard xmlns='vcard-temp'/></iq>"
+	writechan <- "<iq from='" + fromJID + "' to='" + toJID + "' type='get' id='vc2'><vCard xmlns='vcard-temp'/></iq>"
 }
 
 func requestAuthMD5(writechan chan string) {
-	writechan <- "<auth xmlns='"+nsSASL+"' mechanism='DIGEST-MD5'/>"
+	writechan <- "<auth xmlns='" + nsSASL + "' mechanism='DIGEST-MD5'/>"
 }
 
 func requestAuthPLAIN(writechan chan string, username string, password string) {
 	resp := "\u0000" + username + "\u0000" + password
 	base64buf := make([]byte, base64.StdEncoding.EncodedLen(len(resp)))
 	base64.StdEncoding.Encode(base64buf, []byte(resp))
-	writechan <- "<auth xmlns='"+nsSASL+"' mechanism='PLAIN'>"+string(base64buf)+"</auth>"
+	writechan <- "<auth xmlns='" + nsSASL + "' mechanism='PLAIN'>" + string(base64buf) + "</auth>"
 }
 
 func bind(writechan chan string, id string) {
-	writechan <- "<iq type='set' id='"+id+"'><bind xmlns='"+nsBind+"'/></iq>"
+	writechan <- "<iq type='set' id='" + id + "'><bind xmlns='" + nsBind + "'/></iq>"
 }
 
 func sendChallengeResponse1(writechan chan string, response string) {
@@ -398,7 +398,7 @@ func sendChallengeResponse1(writechan chan string, response string) {
 }
 
 func sendChallengeResponse2(writechan chan string) {
-	writechan <- "<response xmlns='"+nsSASL+"'/>"
+	writechan <- "<response xmlns='" + nsSASL + "'/>"
 }
 
 func sendInitialPresence(writechan chan string) {

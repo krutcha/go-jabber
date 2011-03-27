@@ -1,7 +1,7 @@
 package gojabber
 
 import (
-    xmlx "github.com/jteeuwen/go-pkg-xmlx"
+	xmlx "github.com/jteeuwen/go-pkg-xmlx"
 	"fmt"
 	"crypto/md5"
 	"encoding/base64"
