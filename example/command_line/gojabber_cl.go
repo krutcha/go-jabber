@@ -265,6 +265,9 @@ func main() {
 					}
 				}
 			case "/quit":
+				for _, jcon := range jabberCons {
+				    jcon.Disconnect()
+				}
 				return
 			}
 		}
