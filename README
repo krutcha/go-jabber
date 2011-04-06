@@ -3,9 +3,10 @@ Author: Chad Krueger <ckrueger@gmail.com>
 This Package provides basic XMPP protocol support in GO.
 
 ================================================================================
- REQUIREMENTS
+ DEPENDENCIES 
 ================================================================================
--Currently Depends on XMLX (https://github.com/jteeuwen/go-pkg-xmlx)
+goinstall github.com/sloonz/go-iconv/src
+goinstall github.com/jteeuwen/go-pkg-xmlx
 
 ================================================================================
  USAGE
