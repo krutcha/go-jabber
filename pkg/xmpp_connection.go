@@ -143,11 +143,10 @@ func SpawnConnection(host string, domain string, username string, password strin
 	jcon.cleanup = func() {
 		logVerbose("gojabber - cleaning up: %s", host)
 		endStream(jcon.net_out)
-		close(jcon.net_in)
-		close(jcon.net_out)
+		close(jcon.net_out) //will bring down net writer
 		close(jcon.user_cmd)
 		close(jcon.user_resp)
-		con.Close()
+		con.Close()         //will bring down net reader
 	}
 
 	//<session establishment - [1], initiate stream>
@@ -157,17 +156,16 @@ func SpawnConnection(host string, domain string, username string, password strin
 	logVerbose("STATE: Auth1")
 
 	go func() {
-		defer func() { jcon.cleanup() }()
 		/**
 		 * process incoming network traffic, 
 		 * manage XMPP connection state, etc
 		 */
 		for msg := range jcon.net_in {
-			if closed(jcon.net_in) {
-				return
-			}
 			logVerbose("HANDLING: %s", msg)
 
+            if(msg == "") {
+                return
+            }
 			msgType, err := getMessageType(msg)
 			logError(err)
 
@@ -507,7 +505,7 @@ func startNetReader(con net.Conn) chan string {
 
 	go func() {
 		defer func() {
-			log("READER TERMINATING")
+			logVerbose("READER TERMINATING")
 			close(inchan)
 		}()
 
@@ -539,15 +537,11 @@ func startNetWriter(con net.Conn) chan string {
 	outchan := make(chan string, 100)
 
 	go func() {
-		defer func() {
-			log("WRITER TERMINATING")
-			close(outchan)
-		}()
-
 		for msg := range outchan {
 			logVerbose("SENDING:\"" + msg + "\"")
 			io.WriteString(con, msg)
 		}
+   	    logVerbose("WRITER TERMINATING")
 	}()
 
 	return outchan
