@@ -140,7 +140,7 @@ func main() {
 			case "/disconnect":
 				var serverNum int
 				fmt.Sscanf(tokens[1], "%d", &serverNum)
-				if len(jabberCons)-1 > serverNum {
+				if len(jabberCons)-1 >= serverNum {
 					jabberCons[serverNum].Disconnect()
 					jabberCons = deleteCon(jabberCons, serverNum)
 				}
